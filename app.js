@@ -31,7 +31,8 @@ mongoose.connect("mongodb://localhost:27017/userDB")
 const userSchema = new mongoose.Schema({
     email: String,
     password: String,
-    googleId: String
+    googleId: String,
+    secret: String
 })
 
 userSchema.plugin(passportLocalMongoose)
@@ -41,15 +42,15 @@ const User = new mongoose.model("User", userSchema)
 
 passport.use(User.createStrategy())
 
-passport.serializeUser(function(user, done) {
+passport.serializeUser(function (user, done) {
     done(null, user.id);
-  });
-  
-  passport.deserializeUser(function(id, done) {
-    User.findById(id, function(err, user) {
-      done(err, user);
+});
+
+passport.deserializeUser(function (id, done) {
+    User.findById(id, function (err, user) {
+        done(err, user);
     });
-  });
+});
 
 passport.use(new GoogleStrategy({
     clientID: process.env.CLIENT_ID,
@@ -59,7 +60,6 @@ passport.use(new GoogleStrategy({
 },
     function (accessToken, refreshToken, profile, cb) {
         User.findOrCreate({ googleId: profile.id }, function (err, user) {
-            console.log(profile)
             return cb(err, user);
         });
     }
@@ -106,11 +106,40 @@ app.get("/register", (req, res) => {
 })
 
 app.get("/secrets", (req, res) => {
+    User.find({ "secret": { $ne: null } }, (err, foundUsers) => {
+        if (err) {
+            console.log(err)
+        } else {
+            if (foundUsers) {
+                res.render("secrets", {usersWithSecrets: foundUsers})
+            }
+        }
+    })
+})
+
+app.get("/submit", (req, res) => {
     if (req.isAuthenticated()) {
-        res.render("secrets")
+        res.render("submit")
     } else {
         res.redirect("/login")
     }
+})
+
+app.post("/submit", (req, res) => {
+    const submittedSecret = req.body.secret
+    console.log(req.user)
+    User.findById(req.user.id, (err, foundUser) => {
+        if (err) {
+            console.log(err)
+        } else {
+            if (foundUser) {
+                foundUser.secret = submittedSecret
+                foundUser.save(() => {
+                    res.redirect("/secrets")
+                })
+            }
+        }
+    })
 })
 
 app.get("/logout", (req, res) => {
